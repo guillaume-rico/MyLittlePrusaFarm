@@ -26,7 +26,7 @@ if os.path.exists(commonPath) :
     
     
 for folderGroup in os.scandir(scriptPath + '/groups') :
-    if folderGroup.is_dir() and folderGroup.name != "_COMMON" :
+    if folderGroup.is_dir() and folderGroup.name != "_COMMON" and folderGroup.name != "example" :
         print("Working on group : " + folderGroup.name)
         # Pour chaque machine :
         # 1) On se connecte 
@@ -65,7 +65,7 @@ for folderGroup in os.scandir(scriptPath + '/groups') :
                         prusaMini.get_version()
                     except :
                         connectionOK = False
-                        print("<!>  Error - Host doenot respond")
+                        print("<!>  Error - Host does not respond")
                 
                     if connectionOK :
                         # On vient charger tous les COMMON
