@@ -6,7 +6,7 @@ import os
 import glob 
 import sys 
 
-sys.path.insert(1, 'C:/SLF/Perso/brio/pyPrusaLink/PrusaLinkPy')
+# For debuuging lib sys.path.insert(1, 'C:/SLF/Perso/brio/pyPrusaLink/PrusaLinkPy')
 
 import PrusaLinkPy
 
@@ -134,7 +134,7 @@ for folderGroup in os.scandir(scriptPath + '/groups') :
                         #print(listFolderToSend)
                         if clean :
                             # filename filedir
-                            fileDict = prusaMini.get_recursive_v1_files()
+                            fileDict = prusaMini.get_recursive_files()
                             #print(fileDict)
                             # Delete Files
                             for fileName, filePrinterPath in flatten(fileDict) :
