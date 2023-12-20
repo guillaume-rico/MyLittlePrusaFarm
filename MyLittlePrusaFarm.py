@@ -7,6 +7,7 @@ import glob
 import sys 
 import concurrent.futures
 from multiprocessing import Manager
+import random, time
 
 # For debuuging lib sys.path.insert(1, 'C:/SLF/Perso/brio/pyPrusaLink/PrusaLinkPy')
 
@@ -79,10 +80,15 @@ def addError (printerL, text) :
     errorDict[printerL].append(text)
 
 syncStatusByPrinterDict = {}
-
+isInDisplaySyncStatus = False
 def displaySyncStatus (printerB, status, appendToStr = False) :
     # Clear Screen 
     # Update Dict 
+    global isInDisplaySyncStatus
+    
+    while isInDisplaySyncStatus :
+        time.sleep(random.uniform(0.01, 0.05))
+        
     if printerB not in syncStatusByPrinterDict :
         syncStatusByPrinterDict[printerB] = ""
         
@@ -91,14 +97,30 @@ def displaySyncStatus (printerB, status, appendToStr = False) :
     else :
         syncStatusByPrinterDict[printerB] = status 
 
-    # Display on Screen :
-    #os.system('cls' if os.name=='nt' else 'clear')
-    #print("New Update")
-    #print("Status :")
-    #for printerB in syncStatusByPrinterDict :
-    #    print(printerB + " : " + syncStatusByPrinterDict[printerB])
-    print(printerB + " : " + syncStatusByPrinterDict[printerB])
+    if not isInDisplaySyncStatus :
+        isInDisplaySyncStatus = True
+        
+        # Display on Screen :
+        UP = "\x1B[" + str(len(syncStatusByPrinterDict) + 2) + "A"
+        UP2 = "\x1B[2A"
+        CLR = "\x1B[0K"
+        
+        # Clear screen
+        for elem in syncStatusByPrinterDict :
+            print(f"{UP2}{CLR}")
+            
+        print(f"{UP}Status :{CLR}")
+        for printerB in syncStatusByPrinterDict :
+            # print(printerB + " : " + syncStatusByPrinterDict[printerB])
+            if "Finish" in syncStatusByPrinterDict[printerB] :
+                # In green !
+                print('\x1b[6;30;42m' + printerB + '\x1b[0m' + f" : " + syncStatusByPrinterDict[printerB] + f"{CLR}")
+            else :
+                print(printerB + f" : " + syncStatusByPrinterDict[printerB] + f"{CLR}")
+            
 
+        isInDisplaySyncStatus = False
+    
 
 def synchroPrinter (printerDef, folderGroupLocal) :
 
@@ -146,9 +168,9 @@ def synchroPrinter (printerDef, folderGroupLocal) :
                                     try :
                                         if not args.test :
                                             ret = prusaMini.put_gcode(completPath, printerPath)
-                                    except :
+                                    except Exception as e:
                                         displaySyncStatus(printerDef.name, " -> Error durring sending", True)
-                                        addError(printerDef.name , "Error - during sending file : " + printerPath)
+                                        addError(printerDef.name , "Error - during sending file : " + printerPath + f" error : {e}")
                                         errorDuringSending = True
                                         break
                                     if not errorDuringSending : 
@@ -225,7 +247,7 @@ if args.update :
             try:
                 result = future.result()
             except Exception as e:
-                print(f"Error in func1: {e}")
+                print(f"Error in thread : {e}")
 
 
 if args.check :
