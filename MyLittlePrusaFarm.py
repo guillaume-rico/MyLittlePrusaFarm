@@ -106,8 +106,10 @@ def displaySyncStatus (printerB, status, appendToStr = False) :
         CLR = "\x1B[0K"
         
         # Clear screen
-        for elem in syncStatusByPrinterDict :
+        for elem in syncStatusByPrinterDict  :
             print(f"{UP2}{CLR}")
+        print(f"{UP2}{CLR}")
+        print(f"{UP2}{CLR}")
             
         print(f"{UP}Status :{CLR}")
         for printerB in syncStatusByPrinterDict :
@@ -212,6 +214,9 @@ def synchroPrinter (printerDef, folderGroupLocal) :
                             displaySyncStatus(printerDef.name," -> Error : " + str(ret.status_code) + " text "  + str(ret.text).replace('\n', ''), True)
                             addError(printerDef.name , "Error - during deleting folder : " + folderPrinterPath + " Error code : " + str(ret.status_code) + " - Error text "  + str(ret.text).replace('\n', ''))
         displaySyncStatus(printerDef.name, "Finish !")
+
+#Nettoyage de la console :
+os.system('cls' if os.name=='nt' else 'clear')
 
 # Mise à jour des clés USB :
 if args.update :
