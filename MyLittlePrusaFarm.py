@@ -164,7 +164,7 @@ def synchroPrinter (printerDef, folderGroupLocal) :
                                 if prusaMini.exists_gcode(printerPath) : 
                                     displaySyncStatus(printerDef.name, " -> File Already Exists", True)
                                 else :
-                                    displaySyncStatus(printerDef.name, " -> Sending file", True)
+                                    displaySyncStatus(printerDef.name, " -> Sending file ...", True)
                                     
                                     errorDuringSending = False
                                     try :
@@ -243,7 +243,7 @@ if args.update :
                 listPrinterToSync.append((printer,folderGroup))
     
     # On execute l'ensemble des threads 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(listPrinterToSync)) as executor:
         futures = []
         for PrinterToSync, folderGroup in listPrinterToSync:
             futures.append(executor.submit(synchroPrinter, printerDef=PrinterToSync, folderGroupLocal=folderGroup))
