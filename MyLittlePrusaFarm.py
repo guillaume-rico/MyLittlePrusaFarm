@@ -153,7 +153,7 @@ def synchroPrinter (printerDef, folderGroupLocal) :
                 if os.path.exists(dirToSynch) :
                     for (root,dirs,files) in os.walk(dirToSynch,topdown=True):
                         for file in files :
-                            if "gcode" in file : 
+                            if "gcode" in file or "bbf" in file : 
                                 completPath = root.replace("\\","/") + "/" + file
                                 printerPath = completPath.replace(dirToSynch + "/","")
                                 listFolderToSend.append(root.replace("\\","/").replace(dirToSynch + "/",""))
