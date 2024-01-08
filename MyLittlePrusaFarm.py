@@ -7,9 +7,9 @@ import glob
 import sys 
 import concurrent.futures
 from multiprocessing import Manager
-import random, time
+import random, time, datetime
 
-# For debuuging lib sys.path.insert(1, 'C:/SLF/Perso/brio/pyPrusaLink/PrusaLinkPy')
+# For debugging lib sys.path.insert(1, 'C:/SLF/Perso/brio/pyPrusaLink/PrusaLinkPy')
 
 import PrusaLinkPy
 
@@ -17,11 +17,17 @@ import PrusaLinkPy
 scriptPath = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-u', '--update', action='store_true')
-parser.add_argument('-t', '--test', action='store_true')
-parser.add_argument('-c', '--check', action='store_true')
-parser.add_argument('-n', '--notification', action='store_true')
-parser.add_argument('-g', '--groups', nargs='+', default=[])
+parser.add_argument('-u', '--update', action='store_true', help="update Gcode on printers")
+parser.add_argument('-t', '--test', action='store_true', help="test mode")
+parser.add_argument('-c', '--check', action='store_true', help="check status of printers")
+parser.add_argument('-n', '--notification', action='store_true', help="display windows notification")
+parser.add_argument('-s', '--start', action='store_true', help="start Gcode on printers")
+
+# Args for start 
+parser.add_argument('--endhour', type=int, help='Next change hour')
+parser.add_argument('--notinclud', type=str, help='String in folder to exlcude')
+
+parser.add_argument('-g', '--groups', nargs='+', default=[], help="groups")
 args = parser.parse_args()
 
 def flatten(dictionary, folder ="") :
@@ -255,7 +261,7 @@ if args.update :
                 print(f"Error in thread : {e}")
 
 
-if args.check :
+if args.check or args.start :
     printerCheckDict = {}
     for folderGroup in os.scandir(scriptPath + '/groups') :
         if folderGroup.is_dir() and \
@@ -295,6 +301,7 @@ if args.check :
                             
                         if connectionOK :
                             printerCheckDict[printer.name] = {}
+                            printerCheckDict[printer.name]["pointer"] = prusaMini
                             printerCheckDict[printer.name]["get_printer"] = ret.json()
                             printerCheckDict[printer.name]["get_status"] = ret2.json()
                             print("  * Printing ? " + str(printerCheckDict[printer.name]["get_printer"]['state']['flags']['printing']) + " - error ? " + str(printerCheckDict[printer.name]["get_printer"]['state']['flags']['error']))
@@ -327,6 +334,47 @@ if args.check :
             newToast.text_fields = [textToDisplay]
             newToast.on_activated = lambda _: print('Toast clicked!')
             toaster.show_toast(newToast)
+            
+    if args.start :
+        endHour = args.endhour
+        foldertoskip = args.notinclud
+        # Combien de temps avant 22h 
+        actual = datetime.datetime.now()
+        
+        if actual.hour < endHour :
+            nbMinAvalable = (endHour - 1 - actual.hour) * 60 + 60 - actual.minute
+        else :
+            nbMinAvalable = (24      - 1 - actual.hour) * 60 + 60 - actual.minute
+            nbMinAvalable = nbMinAvalable + endHour * 60
+        print("Temps avant prochaine execution : " + str(round(nbMinAvalable / 60,0)) + "h " + str(round(nbMinAvalable % 60,0)) + "m")
+        
+        #On cherche les machines de libre        
+        for printer in printerCheckDict :
+            if printerCheckDict[printer]["get_status"]["printer"]["state"] == "IDLE" :
+                dictFileToRun = {}
+                # On cherche le plus grand programme a lancer
+                gcodeDict = printerCheckDict[printer]["pointer"].get_recursive_files()
+                for dkey in gcodeDict :
+                    if (foldertoskip is not None and foldertoskip not in dkey) or foldertoskip is None : 
+                        for fname in gcodeDict[dkey] :
+                            valid = True
+                            try : 
+                                duree = datetime.datetime.strptime(fname.split(".")[0], "%Hh%Mm")
+                            except :
+                                valid = False
+                                
+                            if valid :
+                                if duree.hour * 60 + duree.minute <= nbMinAvalable : 
+                                    dictFileToRun[duree.hour * 60 + duree.minute] = gcodeDict[dkey][fname]
+                                
+                # Maintenant on cherche le pus long disponible et on le lance
+                if dictFileToRun != {} :
+                    myKeys = list(dictFileToRun.keys())
+                    myKeys.sort()
+                    print("Print file : " + dictFileToRun[myKeys[-1]] + " Duree (min) " + str(myKeys[-1]) )
+                    printerCheckDict[printer]["pointer"].post_gcode(dictFileToRun[myKeys[-1]]) 
+            else :
+                print(printer + " : Cannot start file :  " + printerCheckDict[printer]["get_status"]["printer"]["state"])
                         
 if errorDict != {} :
     # Color : https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
