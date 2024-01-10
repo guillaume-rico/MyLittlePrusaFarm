@@ -23,12 +23,21 @@ parser.add_argument('-c', '--check', action='store_true', help="check status of 
 parser.add_argument('-n', '--notification', action='store_true', help="display windows notification")
 parser.add_argument('-s', '--start', action='store_true', help="start Gcode on printers")
 
+parser.add_argument('-l', '--local', action='store_true', help="use local settings of ini files")
+
 # Args for start 
 parser.add_argument('--endhour', type=int, help='Next change hour')
 parser.add_argument('--notinclud', type=str, help='String in folder to exlcude')
 
 parser.add_argument('-g', '--groups', nargs='+', default=[], help="groups")
 args = parser.parse_args()
+
+# Color for Shell :
+RED_S = '\x1b[6;30;41m'
+GREEN_S = '\x1b[6;30;42m'
+ORANGE_S = '\x1b[6;30;43m'
+BLUE_S = '\x1b[6;30;44m'
+COL_E = '\x1b[0m' 
 
 def flatten(dictionary, folder ="") :
     items = []
@@ -54,8 +63,8 @@ def loadINI(printerName, fileName) :
     retDict["IP"] = ""
     retDict["PORT"] = "80"
     retDict["PKA"] = ""
-    retDict["IP_DISTANT"] = ""
-    retDict["PORT_DISTANT"] = ""
+    retDict["IP_LOCAL"] = ""
+    retDict["PORT_LOCAL"] = ""
     retDict["iniFileLoaded"] = False
     
     if fileName.is_file() :
@@ -65,10 +74,12 @@ def loadINI(printerName, fileName) :
                 splitted = line.strip().split(' ')
                 if len(splitted) == 3 :
                     retDict[splitted[0]] = splitted[2]
-    if retDict["IP_DISTANT"] != "" :
-        retDict["IP"] = retDict["IP_DISTANT"]
-    if retDict["PORT_DISTANT"] != "" :
-        retDict["PORT"] = retDict["PORT_DISTANT"]
+                    
+    if args.local :
+        if retDict["IP_LOCAL"] != "" :
+            retDict["IP"] = retDict["IP_LOCAL"]
+        if retDict["PORT_LOCAL"] != "" :
+            retDict["PORT"] = retDict["PORT_LOCAL"]
         
     if retDict["IP"] != "" and retDict["PKA"] != "" :
         retDict["iniFileLoaded"] = True
@@ -122,7 +133,7 @@ def displaySyncStatus (printerB, status, appendToStr = False) :
             # print(printerB + " : " + syncStatusByPrinterDict[printerB])
             if "Finish" in syncStatusByPrinterDict[printerB] :
                 # In green !
-                print('\x1b[6;30;42m' + printerB + '\x1b[0m' + f" : " + syncStatusByPrinterDict[printerB] + f"{CLR}")
+                print(GREEN_S + printerB + COL_E + f" : " + syncStatusByPrinterDict[printerB] + f"{CLR}")
             else :
                 print(printerB + f" : " + syncStatusByPrinterDict[printerB] + f"{CLR}")
             
@@ -183,7 +194,7 @@ def synchroPrinter (printerDef, folderGroupLocal) :
                                         break
                                     if not errorDuringSending : 
                                         if ret.status_code == 201 :
-                                            displaySyncStatus(printerDef.name, " -> " + '\x1b[6;30;42m' + "OK" + '\x1b[0m', True)
+                                            displaySyncStatus(printerDef.name, " -> " + GREEN_S + "OK" + COL_E, True)
                                         elif ret.status_code == 401 :
                                             displaySyncStatus(printerDef.name, " -> Error : Unauthorized - Check IP & Port & PKA", True)
                                             addError(printerDef.name , "Error - Error : Unauthorized - Check IP & Port & PKA - sending file : " + printerPath)
@@ -268,7 +279,7 @@ if args.check or args.start :
            folderGroup.name != "_COMMON" and \
            folderGroup.name != "example" and \
            (args.groups == [] or folderGroup.name in args.groups) :
-            print("Working on group : " + folderGroup.name)
+            # print("Working on group : " + folderGroup.name)
             # Pour chaque machine :
             # 1) On se connecte 
             # 2) On vérifie que les dossiers sont biens présents
@@ -287,7 +298,7 @@ if args.check or args.start :
                         ret = prusaMini.get_printer()
                     except :
                         connectionOK = False
-                        print("<!>  Error - Host does not respond")
+                        #print("<!>  Error - Host does not respond")
                         addError(printer.name , "Error - Host does not respond")
                     
                     if connectionOK :
@@ -296,7 +307,7 @@ if args.check or args.start :
                             ret2 = prusaMini.get_status()
                         except :
                             connectionOK = False
-                            print("<!>  Error - Host does not respond")
+                            #print("<!>  Error - Host does not respond")
                             addError(printer.name , "Error - Host does not respond")    
                             
                         if connectionOK :
@@ -304,7 +315,22 @@ if args.check or args.start :
                             printerCheckDict[printer.name]["pointer"] = prusaMini
                             printerCheckDict[printer.name]["get_printer"] = ret.json()
                             printerCheckDict[printer.name]["get_status"] = ret2.json()
-                            print("  * Printing ? " + str(printerCheckDict[printer.name]["get_printer"]['state']['flags']['printing']) + " - error ? " + str(printerCheckDict[printer.name]["get_printer"]['state']['flags']['error']))
+                            # Flag printing : printerCheckDict[printer.name]["get_printer"]['state']['flags']['printing']
+                            # Flag Error : printerCheckDict[printer.name]["get_printer"]['state']['flags']['error']
+                            color = GREEN_S
+                            state = printerCheckDict[printer.name]["get_status"]["printer"]["state"]
+                            if state == "PAUSED" or state == "ATTENTION" :
+                                color = ORANGE_S
+                            if state == "STOPPED" or state == "IDLE" or state == "FINISHED" :
+                                color = GREEN_S
+                            if state == "PRINTING" :
+                                color = BLUE_S
+                                
+                            print(printer.name + " : " + folderGroup.name + " : STATE : " + color + state + COL_E + " : TEMP_NOZZLE : " + str(printerCheckDict[printer.name]["get_status"]["printer"]["temp_nozzle"]))
+                        else :
+                            print(printer.name + " : " + folderGroup.name + " : STATE : " + RED_S + "NOT_RESPONDING" + COL_E)
+                    else :
+                        print(printer.name + " : " + folderGroup.name + " : STATE : " + RED_S + "NOT_RESPONDING" + COL_E)
                             
     if args.notification :
         # Prepare notification
@@ -357,28 +383,42 @@ if args.check or args.start :
                 for dkey in gcodeDict :
                     if (foldertoskip is not None and foldertoskip not in dkey) or foldertoskip is None : 
                         for fname in gcodeDict[dkey] :
-                            valid = True
+                            valid = False
                             try : 
                                 duree = datetime.datetime.strptime(fname.split(".")[0], "%Hh%Mm")
+                                valid = True
                             except :
-                                valid = False
+                                True
                                 
-                            if valid :
+                            # On essaye en supprimant ce qui traine après _
+                            offsetMin = 0
+                            if not valid :
+                                try : 
+                                    duree = datetime.datetime.strptime(fname.split(".")[0].split("_")[0], "%Hh%Mm")
+                                    valid = True
+                                except :
+                                    True
+                                    
+                                if valid :
+                                    offsetMin = 1
+                                
+                            if valid : 
                                 if duree.hour * 60 + duree.minute <= nbMinAvalable : 
-                                    dictFileToRun[duree.hour * 60 + duree.minute] = gcodeDict[dkey][fname]
+                                    dictFileToRun[duree.hour * 60 + duree.minute + offsetMin] = gcodeDict[dkey][fname]
                                 
                 # Maintenant on cherche le pus long disponible et on le lance
                 if dictFileToRun != {} :
                     myKeys = list(dictFileToRun.keys())
                     myKeys.sort()
-                    print("Print file : " + dictFileToRun[myKeys[-1]] + " Duree (min) " + str(myKeys[-1]) )
-                    printerCheckDict[printer]["pointer"].post_gcode(dictFileToRun[myKeys[-1]]) 
+                    print(printer + " : Print file : " + dictFileToRun[myKeys[-1]] + " Duree: " + str(myKeys[-1]) + "min" )
+                    if not args.test :
+                        printerCheckDict[printer]["pointer"].post_gcode(dictFileToRun[myKeys[-1]]) 
             else :
                 print(printer + " : Cannot start file :  " + printerCheckDict[printer]["get_status"]["printer"]["state"])
                         
 if errorDict != {} :
     # Color : https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
-    print("\n\n" + '\x1b[6;30;41m' + "List of errors : " + '\x1b[0m')
+    print("\n\n" + RED_S + "List of errors : " + COL_E)
     for printerName in errorDict :
         print(" * Printer : " + printerName)
         for errorText in errorDict[printerName] :
